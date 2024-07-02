@@ -40,28 +40,35 @@ class _HomepageState extends State<Homepage> {
     }
   }
   Future<void> _retrieveNotes() async {
-  try {
-    final response = await http.get(Uri.parse(baseUrl));
-    if (response.statusCode == 200) {
-      final List<dynamic> responseData = jsonDecode(response.body)['todos']; // Assuming 'todos' is the key for your list of notes
-      setState(() {
-        notes = responseData.map((data) => Todo.fromMap(data)).toList();
-        isLoading = false;
-      });
-    } else {
-      setState(() {
-        hasError = true;
-        isLoading = false;
-      });
+    const int maxAttempts = 15;
+    int attempt = 0;
+
+    while (attempt < maxAttempts) {
+      attempt++;
+      try {
+        final response = await http.get(Uri.parse(baseUrl));
+        if (response.statusCode == 200) {
+          final List<dynamic> responseData = jsonDecode(response.body)['todos']; // Assuming 'todos' is the key for your list of notes
+          setState(() {
+            notes = responseData.map((data) => Todo.fromMap(data)).toList();
+            isLoading = false;
+          });
+          return;
+        } else {
+          setState(() {
+            hasError = true;
+            isLoading = false;
+          });
+        }
+      } catch (e) {
+        print(e);
+        setState(() {
+          hasError = true;
+          isLoading = false;
+        });
+      }
     }
-  } catch (e) {
-    print(e);
-    setState(() {
-      hasError = true;
-      isLoading = false;
-    });
   }
-}
 
 @override
 void initState() {
