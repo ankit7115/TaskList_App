@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:todo/addnote.dart';
 import 'package:todo/todo.dart'; // Ensure this imports the Note model
 import 'package:todo/urls.dart'; // Ensure this imports the URLs
@@ -16,65 +16,67 @@ class _HomepageState extends State<Homepage> {
   List<Todo> notes = [];
   bool isLoading = true;
   bool hasError = false;
+  int attempt = 0;
+  static const int maxAttempts = 15;
 
-  Future<void>_updateNote({required Todo todo})async{
+  Future<void> _updateNote({required Todo todo}) async {
     var response = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => AddNote(todo: todo)),
     );
-    if(response == true){
+    if (response == true) {
       _retrieveNotes();
     }
   }
-  Future<void> _deleteNote({int? id})async{
-    try{
+
+  Future<void> _deleteNote({int? id}) async {
+    try {
       final response = await http.delete(deleteUrl(id: id));
-      if(response.statusCode == 200){
+      if (response.statusCode == 200) {
         setState(() {
           notes.removeWhere((element) => element.id == id);
         });
       }
-    }
-    catch(e){
+    } catch (e) {
       print(e);
     }
   }
-  Future<void> _retrieveNotes() async {
-    const int maxAttempts = 15;
-    int attempt = 0;
 
+  Future<void> _retrieveNotes() async {
     while (attempt < maxAttempts) {
       attempt++;
       try {
         final response = await http.get(Uri.parse(baseUrl));
         if (response.statusCode == 200) {
-          final List<dynamic> responseData = jsonDecode(response.body)['todos']; // Assuming 'todos' is the key for your list of notes
+          final List<dynamic> responseData = jsonDecode(response.body)['todos'];
           setState(() {
             notes = responseData.map((data) => Todo.fromMap(data)).toList();
             isLoading = false;
+            hasError = false;
           });
           return;
         } else {
           setState(() {
             hasError = true;
-            isLoading = false;
           });
         }
       } catch (e) {
         print(e);
         setState(() {
           hasError = true;
-          isLoading = false;
         });
       }
     }
+    setState(() {
+      isLoading = false;
+    });
   }
 
-@override
-void initState() {
-  super.initState();
-  _retrieveNotes();
-}
+  @override
+  void initState() {
+    super.initState();
+    _retrieveNotes();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -86,44 +88,53 @@ void initState() {
       ),
       drawer: DeveloperInfoDrawer(),
       body: RefreshIndicator(
-        onRefresh: _retrieveNotes,
+        onRefresh: () async {
+          setState(() {
+            isLoading = true;
+            hasError = false;
+            attempt = 0;
+          });
+          await _retrieveNotes();
+        },
         child: isLoading
             ? Center(child: CircularProgressIndicator())
             : hasError
-                ? Center(child: Text("Failed to load notes."))
+                ? Center(child: Text("Failed to load notes. Pull down to retry."))
                 : notes.isEmpty
                     ? Center(child: Text("No notes available."))
-                    : Container(
-                      height: MediaQuery.of(context).size.height * 0.8,
-                      child: ListView.builder(
-                          itemCount: notes.length,
-                          itemBuilder: (context, index) {
-                            final note = notes[index];
-                            return Card(
-                              margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                              child: ListTile(
-                                title: Text(note.title),
-                                subtitle: Text(note.todo),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(Icons.edit),
-                                      onPressed: () => _updateNote(todo: note),
-                                    ),
-                                    IconButton(
-                                      icon: Icon(Icons.delete),
-                                      onPressed: () => _deleteNote(id: note.id),
-                                    ),
-                                  ]
-                            )));
-                          },
-                        ),
-                    ),
+                    : ListView.builder(
+                        itemCount: notes.length,
+                        itemBuilder: (context, index) {
+                          final note = notes[index];
+                          return Card(
+                            margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                            child: ListTile(
+                              title: Text(note.title),
+                              subtitle: Text(note.todo),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.edit),
+                                    onPressed: () => _updateNote(todo: note),
+                                  ),
+                                  IconButton(
+                                    icon: Icon(Icons.delete),
+                                    onPressed: () => _deleteNote(id: note.id),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: (){
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const AddNote())).then((value){
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const AddNote()),
+          ).then((value) {
             _retrieveNotes();
           });
         },
@@ -133,6 +144,7 @@ void initState() {
     );
   }
 }
+
 class DeveloperInfoDrawer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -153,7 +165,6 @@ class DeveloperInfoDrawer extends StatelessWidget {
               ),
             ),
           ),
-          // SizedBox(height: 500,),
           ListTile(
             title: Text('Developer: Ankit Srivastava'),
             onTap: () {
